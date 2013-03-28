@@ -50,37 +50,37 @@ Begin["Private`"]
 
 Der[Tensor_,Coordinates_]:=
 Module[
-{\[Xi]=Tensor,r=Coordinates,rank,cycle,d\[Xi]},
+{A=Tensor,r=Coordinates,rank,cycle,dA},
 
-If[ArrayQ[\[Xi]],rank=ArrayDepth[\[Xi]],rank=0];
+If[ArrayQ[A],rank=ArrayDepth[A],rank=0];
 (*rank of the derivative tensor will be one higher than rank of Tensor*)
 cycle=Prepend[Range[rank],rank+1];
 (*this will permute the indices to match the canonical form*)
-d\[Xi]=Transpose[D[\[Xi],#]&/@r,cycle];
+dA=Transpose[D[A,#]&/@r,cycle];
 
-Return[d\[Xi]]
+Return[dA]
 ]
 
 GeometricQuantities[Metric_,Coordinates_,$Assumptions_:{},Simplified_:True,Prolix_:False]:=
 Module[
-{g=Metric,r=Coordinates,invg,dg,\[CapitalGamma],d\[CapitalGamma],Riem,Ric,\[ScriptCapitalR],\[ScriptCapitalG],EinsteinQ},
+{g=Metric,r=Coordinates,invg,dg,ChrSym,dChrSym,Riem,Ric,RicScalar,Einstein,EinsteinQ},
 
 invg=Inverse[g]//Simplify;
 If[Prolix,Print["Inverse metric calculated"]];
 dg=Der[g,r];
-(*Subscript[(dg), ijk]=\!\(
+(*\!\(
 \*SubscriptBox[\(\[PartialD]\), \(k\)]
-\*SubscriptBox[\(g\), \(ij\)]\) == Subscript[g, ij,k]*)
+\*SubscriptBox[\(g\), \(ij\)]\)*)
 
-\[CapitalGamma]=1/2 invg.(dg+Transpose[dg,{1,3,2}]-Transpose[dg,{2,3,1}])//Simplify;
+ChrSym=1/2 invg.(dg+Transpose[dg,{1,3,2}]-Transpose[dg,{2,3,1}])//Simplify;
 If[Prolix,Print["Christoffel symbols calculated"]];
-d\[CapitalGamma]=Der[\[CapitalGamma],r];
-(*Subscript[(d\[CapitalGamma])^i, jkm]=\!\(
+dChrSym=Der[ChrSym,r];
+(*\!\(
 \*SubscriptBox[\(\[PartialD]\), \(m\)]
 \*SubscriptBox[
-SuperscriptBox[\(\[CapitalGamma]\), \(i\)], \(jk\)]\)=Subscript[\[CapitalGamma]^i, jk,m]*)
+SuperscriptBox[\(ChrSym\), \(i\)], \(jk\)]\)*)
 
-Riem=Transpose[d\[CapitalGamma],{1,2,4,3}]-Transpose[d\[CapitalGamma],{1,2,3,4}]+Transpose[\[CapitalGamma].\[CapitalGamma],{1,3,2,4}]- Transpose[\[CapitalGamma].\[CapitalGamma],{1,4,2,3}];
+Riem=Transpose[dChrSym,{1,2,4,3}]-Transpose[dChrSym,{1,2,3,4}]+Transpose[ChrSym.ChrSym,{1,3,2,4}]- Transpose[ChrSym.ChrSym,{1,4,2,3}];
 If[Simplified,Riem=Simplify[Riem]];
 If[Prolix,Print["Riemann tensor calculated"]];
 
@@ -88,47 +88,47 @@ Ric=Tr[Transpose[Riem,{1,3,2,4}],Plus,2];
 If[Simplified,Ric=Simplify[Ric]];
 If[Prolix,Print["Ricci tensor calculated"]];
 
-\[ScriptCapitalR]=Tr[invg.Ric];
-If[Simplified,\[ScriptCapitalR]=Simplify[\[ScriptCapitalR]]];
+RicScalar=Tr[invg.Ric];
+If[Simplified,RicScalar=Simplify[RicScalar]];
 If[Prolix,Print["Ricci scalar calculated"]];
 
-EinsteinQ=And[##]&@@(FreeQ[\[ScriptCapitalR],#]&/@r);
+EinsteinQ=And[##]&@@(FreeQ[RicScalar,#]&/@r);
 (*an Einstein metric will have Ricci scalar independent of all coordinates, i.e. constant over the manifold*)
-\[ScriptCapitalG]=Ric-1/2 \[ScriptCapitalR] g;
-If[Simplified,\[ScriptCapitalG]=Simplify[\[ScriptCapitalG]]];
+Einstein=Ric-1/2 RicScalar g;
+If[Simplified,Einstein=Simplify[Einstein]];
 
-Return[{\[ScriptCapitalR],\[CapitalGamma],Ric,\[ScriptCapitalG],EinsteinQ}]
+Return[{RicScalar,ChrSym,Ric,Einstein,EinsteinQ}]
 ]
 
 FisherMetric[Distribution_,Parameters_,Limits_,$Assumptions_:{}]:=
 Module[
-{p=Distribution,\[Beta]=Parameters,\[ScriptL],\[ScriptG],metric},
+{p=Distribution,b=Parameters,logp,gdensity,metric},
 
 If[!(Integrate[p[x],{x,##}&@@Limits]===1),Return[{"Improper Normalization",p[x]}]];
-\[ScriptL][x]=Log[p[x]];
-\[ScriptG][x]=-D[\[ScriptL][x],{\[Beta],2}]//FullSimplify;
-(*In practice, this provides a massive speed-up over the (\[PartialD]/\[PartialD]\[Beta]^i)(ln p[x;\[Beta]])(\[PartialD]/\[PartialD]\[Beta]^j)(ln p[x;\[Beta]]) form.*)
-metric=Integrate[\[ScriptG][x]p[x],{x,##}&@@Limits]//FullSimplify;
+logp[x]=Log[p[x]];
+gdensity[x]=-D[logp[x],{b,2}]//FullSimplify;
+(*In practice, this provides a massive speed-up over the (\[PartialD]/\[PartialD]b^i)(ln p[x;b])(\[PartialD]/\[PartialD]b^j)(ln p[x;b]) form.*)
+metric=Integrate[gdensity[x]p[x],{x,##}&@@Limits]//FullSimplify;
 
 Return[metric]
 ]
 
 CovD[Tensor_,Index_,Coordinates_,ChristoffelSymbols_]:=
 Module[
-{\[Xi]=Tensor,i=Index,r=Coordinates,\[CapitalGamma]=ChristoffelSymbols,rank,\[Sigma],p1,p2,p\[Gamma],d\[Xi],\[Delta]\[Xi],D\[Xi]},
+{A=Tensor,i=Index,r=Coordinates,ChrSym=ChristoffelSymbols,rank,perm,p1,p2,pg,dA,delA,DA},
 
-If[ArrayQ[\[Xi]],rank=ArrayDepth[\[Xi]],rank=0];
+If[ArrayQ[A],rank=ArrayDepth[A],rank=0];
 If[!(Length[i]==rank),Return["Improper index specified, rank mismatch."]];
 If[!And[##]&@@(MemberQ[{-1,1},#]&/@i),Return["Improper index signature. Please specify -1 for covariant and +1 for covariant indices."]]
-\[Sigma]=Range[rank];
-p1=Table[Insert[\[Sigma][[;;-2]],\[Sigma][[-1]],j],{j,1,rank}];
-p2=Table[Append[Drop[\[Sigma],{j}],\[Sigma][[j]]],{j,1,rank}];
-p\[Gamma]={{2,3,1},{1,2,3}};
-d\[Xi]=Der[\[Xi],r];
-\[Delta]\[Xi]=-Sum[Transpose[i[[k]]*Transpose[\[Xi],p1[[k]]].Transpose[\[CapitalGamma],p\[Gamma][[i[[k]]]]],p2[[k]]],{k,1,rank}];
-D\[Xi]=d\[Xi]-\[Delta]\[Xi]//Simplify;
+perm=Range[rank];
+p1=Table[Insert[perm[[;;-2]],perm[[-1]],j],{j,1,rank}];
+p2=Table[Append[Drop[perm,{j}],perm[[j]]],{j,1,rank}];
+pg={{2,3,1},{1,2,3}};
+dA=Der[A,r];
+delA=-Sum[Transpose[i[[k]]*Transpose[A,p1[[k]]].Transpose[ChrSym,pg[[i[[k]]]]],p2[[k]]],{k,1,rank}];
+DA=dA-delA//Simplify;
 
-Return[D\[Xi]]
+Return[DA]
 ]
 
 End[]
